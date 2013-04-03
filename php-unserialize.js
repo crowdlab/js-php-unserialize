@@ -5,41 +5,7 @@
 exports.unserialize = unserialize;
 exports.unserializeSession = unserializeSession;
 
-/**
- * Unserialize data taken from PHP's serialize() output
- *
- * Taken from https://github.com/kvz/phpjs/blob/master/functions/var/unserialize.js
- * Fixed window reference to make it nodejs-compatible
- *
- * @param string serialized data
- * @return unserialized data
- * @throws
- */
-function unserialize (data) {
-  // http://kevin.vanzonneveld.net
-  // +     original by: Arpad Ray (mailto:arpad@php.net)
-  // +     improved by: Pedro Tainha (http://www.pedrotainha.com)
-  // +     bugfixed by: dptr1988
-  // +      revised by: d3x
-  // +     improved by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
-  // +        input by: Brett Zamir (http://brett-zamir.me)
-  // +     improved by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
-  // +     improved by: Chris
-  // +     improved by: James
-  // +        input by: Martin (http://www.erlenwiese.de/)
-  // +     bugfixed by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
-  // +     improved by: Le Torbi
-  // +     input by: kilops
-  // +     bugfixed by: Brett Zamir (http://brett-zamir.me)
-  // +      input by: Jaroslaw Czarniak
-  // %            note: We feel the main purpose of this function should be to ease the transport of data between php & js
-  // %            note: Aiming for PHP-compatibility, we have to translate objects to arrays
-  // *       example 1: unserialize('a:3:{i:0;s:5:"Kevin";i:1;s:3:"van";i:2;s:9:"Zonneveld";}');
-  // *       returns 1: ['Kevin', 'van', 'Zonneveld']
-  // *       example 2: unserialize('a:3:{s:9:"firstName";s:5:"Kevin";s:7:"midName";s:3:"van";s:7:"surName";s:9:"Zonneveld";}');
-  // *       returns 2: {firstName: 'Kevin', midName: 'van', surName: 'Zonneveld'}
-  var that = this,
-    utf8Overhead = function (chr) {
+var utf8Overhead = function (chr) {
       // http://phpjs.org/functions/unserialize:571#comment_95906
       var code = chr.charCodeAt(0);
       if (code < 0x0080) {
@@ -77,7 +43,7 @@ function unserialize (data) {
       }
       return [buf.length, buf.join('')];
     },
-    _unserialize = function (data, offset) {
+  _unserialize = function (data, offset) {
       var dtype, dataoffset, keyandchrs, keys,
         readdata, readData, ccount, stringlength,
         i, key, kprops, kchrs, vprops, vchrs, value,
@@ -167,8 +133,42 @@ function unserialize (data) {
           break;
       }
       return [dtype, dataoffset - offset, typeconvert(readdata)];
-    }
-  ;
+    };
+
+/**
+ * Unserialize data taken from PHP's serialize() output
+ *
+ * Taken from https://github.com/kvz/phpjs/blob/master/functions/var/unserialize.js
+ * Fixed window reference to make it nodejs-compatible
+ *
+ * @param string serialized data
+ * @return unserialized data
+ * @throws
+ */
+function unserialize (data) {
+  // http://kevin.vanzonneveld.net
+  // +     original by: Arpad Ray (mailto:arpad@php.net)
+  // +     improved by: Pedro Tainha (http://www.pedrotainha.com)
+  // +     bugfixed by: dptr1988
+  // +      revised by: d3x
+  // +     improved by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
+  // +        input by: Brett Zamir (http://brett-zamir.me)
+  // +     improved by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
+  // +     improved by: Chris
+  // +     improved by: James
+  // +        input by: Martin (http://www.erlenwiese.de/)
+  // +     bugfixed by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
+  // +     improved by: Le Torbi
+  // +     input by: kilops
+  // +     bugfixed by: Brett Zamir (http://brett-zamir.me)
+  // +      input by: Jaroslaw Czarniak
+  // %            note: We feel the main purpose of this function should be to ease the transport of data between php & js
+  // %            note: Aiming for PHP-compatibility, we have to translate objects to arrays
+  // *       example 1: unserialize('a:3:{i:0;s:5:"Kevin";i:1;s:3:"van";i:2;s:9:"Zonneveld";}');
+  // *       returns 1: ['Kevin', 'van', 'Zonneveld']
+  // *       example 2: unserialize('a:3:{s:9:"firstName";s:5:"Kevin";s:7:"midName";s:3:"van";s:7:"surName";s:9:"Zonneveld";}');
+  // *       returns 2: {firstName: 'Kevin', midName: 'van', surName: 'Zonneveld'}
+  var that = this;
 
   return _unserialize((data + ''), 0)[2];
 }
@@ -180,29 +180,23 @@ function unserialize (data) {
  * @return unserialized data
  * @throws
  */
-function unserializeSession (input) {
-  return input.split(/\|/).reduce(function (output, part, index, parts) {
-    // First part = $key
-    if (index === 0) {
-      output._currKey = part;
-    }
-    // Last part = $someSerializedStuff
-    else if (index === parts.length - 1) {
-      output[output._currKey] = unserialize(part);
-      delete output._currKey;
-    }
-    // Other output = $someSerializedStuff$key
-    else {
-      var match = part.match(/^((?:.*?[;\}])+)([^;\}]+?)$/);
-      if (match) {
-        output[output._currKey] = unserialize(match[1]);
-        output._currKey = match[2];
-      } else {
-        throw new Error('Parse error on part "' + part + '"');
-      }
-    }
-    return output;
-  }, {});
+function unserializeSession(data) {
+    var pos = 0;
+    var ret = { };
+    do {
+        var key = '';
+        var c = '|';
+        while(data.length > pos && (c = data.charAt(pos)) != '|') {
+            key += c; pos++;
+        }
+        if (key == '' || key == "\r" || key == "\n") break; // eof
+        pos++; // skip '|'
+        var r = _unserialize(data, pos);
+        if (r[1] == 0) return null; // parser stuck
+        pos += r[1];
+        ret[key] = r[2];
+    } while (pos < data.length);
+    return ret;
 }
 
 // /Wrapper
